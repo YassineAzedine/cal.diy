@@ -262,6 +262,12 @@ export const RETELL_AI_TEST_EVENT_TYPE_MAP = (() => {
   }
 })();
 
+// Only decides whether the Booker renders the assistant; the server independently enforces
+// BOOKING_ASSISTANT_ENABLED and the API key, so this flag alone can't turn the feature on.
+export const IS_BOOKING_ASSISTANT_UI_ENABLED =
+  process.env.NEXT_PUBLIC_BOOKING_ASSISTANT_ENABLED === "1" ||
+  process.env.NEXT_PUBLIC_BOOKING_ASSISTANT_ENABLED === "true";
+
 // Environment variable for configuring past booking reschedule behavior per team. A comma separated list of team IDs(e.g. '1,2,3')
 /* This is an internal environment variable and is not meant to be used by the self-hosters. It is planned to be removed later by either having it as an option in Event Type or by some other customer configurable approaches*/
 export const ENV_PAST_BOOKING_RESCHEDULE_CHANGE_TEAM_IDS =
