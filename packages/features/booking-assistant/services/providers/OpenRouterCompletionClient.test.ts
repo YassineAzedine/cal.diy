@@ -66,7 +66,6 @@ describe("OpenRouterCompletionClient", () => {
           { role: "system", content: "system prompt" },
           { role: "user", content: "user message" },
         ],
-        temperature: 0,
         max_tokens: 300,
         response_format: {
           type: "json_schema",

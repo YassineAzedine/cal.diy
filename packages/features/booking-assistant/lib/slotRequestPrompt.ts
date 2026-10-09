@@ -8,7 +8,10 @@ import { isValidCalendarDate, slotPreferenceSchema } from "./slotRequestSchema";
 const CALENDAR_DAYS = 35;
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const TIME_ZONE_PATTERN = /^[A-Za-z0-9_+\-/]{1,64}$/;
-const INVISIBLE_CHARACTERS = /[\p{Cc}\p{Cf}]/gu;
+// Built with the constructor because @calcom/trpc compiles this file with an ES5 target, which rejects
+// the `u` flag in regex literals. Node supports it at runtime, and Unicode property escapes need it.
+// biome-ignore lint/complexity/useRegexLiterals: a literal with the u flag fails the ES5 declaration build
+const INVISIBLE_CHARACTERS = new RegExp("[\\p{Cc}\\p{Cf}]", "gu");
 
 export const SLOT_REQUEST_SCHEMA_NAME = "slot_request";
 

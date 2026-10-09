@@ -82,7 +82,8 @@ const pickSpread = (sortedSlots: MatchedSlot[], limit: number) => {
       slotsByDay.set(slot.day, [slot]);
     }
   }
-  const days = [...slotsByDay.values()];
+  // Array.from rather than spread: @calcom/trpc compiles this file with an ES5 target.
+  const days = Array.from(slotsByDay.values());
 
   if (days.length >= limit) {
     // Evenly spaced day indexes that always include the first and last day.
@@ -95,7 +96,7 @@ const pickSpread = (sortedSlots: MatchedSlot[], limit: number) => {
     if (picked.size >= limit) break;
     picked.add(slot);
   }
-  return [...picked].sort((a, b) => a.instant - b.instant);
+  return Array.from(picked).sort((a, b) => a.instant - b.instant);
 };
 
 const rankSlots = (sortedSlots: MatchedSlot[], preference: SlotFilter["preference"]) => {

@@ -88,7 +88,8 @@ export class OpenRouterCompletionClient implements IStructuredCompletionClient {
             { role: "system", content: request.systemPrompt },
             { role: "user", content: request.userMessage },
           ],
-          temperature: 0,
+          // No temperature: some models support it on no endpoint (e.g. anthropic/claude-haiku-5.5), and with
+          // require_parameters OpenRouter then routes nowhere. The output is schema-validated, so it isn't needed.
           max_tokens: request.maxOutputTokens,
           response_format: {
             type: "json_schema",
