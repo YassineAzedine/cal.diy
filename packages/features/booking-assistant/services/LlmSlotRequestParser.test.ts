@@ -59,7 +59,8 @@ describe("LlmSlotRequestParser", () => {
         systemPrompt: SLOT_REQUEST_SYSTEM_PROMPT,
         schemaName: SLOT_REQUEST_SCHEMA_NAME,
         jsonSchema: slotRequestJsonSchema,
-        maxOutputTokens: 300,
+        // Room for hidden reasoning (up to ~500 tokens live) plus the short JSON answer.
+        maxOutputTokens: 1500,
       });
       expect(request.userMessage).toContain("Today: 2026-10-09 (Friday)");
       expect(request.userMessage).toContain(`<booker_request>\n${QUERY}\n</booker_request>`);
@@ -181,13 +182,77 @@ describe("LlmSlotRequestParser", () => {
   });
 
   describe("timeouts and cancellation", () => {
-    it("bounds the provider call with the configured timeout", async () => {
+    it("bounds the provider call with an 8 second timeout", async () => {
       const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
       const { parser } = createParser(respondWith(JSON.stringify(understoodOutput)));
 
       await parser.parse(input);
 
-      expect(timeoutSpy).toHaveBeenCalledWith(5000);
+      expect(timeoutSpy).toHaveBeenCalledTimes(1);
+      expect(timeoutSpy).toHaveBeenCalledWith(8000);
+    });
+
+    it("accepts an answer that arrives after the old 5 second limit", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout"] });
+      try {
+        // The parser's own signal is replaced by a fake-timer one so 8 s can elapse instantly.
+        vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+          const controller = new AbortController();
+          setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), ms);
+          return controller.signal;
+        });
+        const { parser } = createParser(
+          (request) =>
+            new Promise((resolve) => {
+              setTimeout(() => {
+                resolve(
+                  request.signal.aborted
+                    ? { ok: false, reason: "timeout" }
+                    : { ok: true, content: JSON.stringify(understoodOutput) }
+                );
+              }, 6000);
+            })
+        );
+
+        const result = parser.parse(input);
+        await vi.advanceTimersByTimeAsync(6000);
+
+        expect(await result).toEqual({ status: "ok", request: understoodOutput });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("gives up once the 8 second limit has passed", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout"] });
+      try {
+        vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+          const controller = new AbortController();
+          setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), ms);
+          return controller.signal;
+        });
+        const { parser } = createParser(
+          (request) =>
+            new Promise((resolve) => {
+              request.signal.addEventListener("abort", () => resolve({ ok: false, reason: "timeout" }));
+            })
+        );
+
+        const result = parser.parse(input);
+        await vi.advanceTimersByTimeAsync(7999);
+        let settled = false;
+        result.then(() => {
+          settled = true;
+        });
+        await Promise.resolve();
+        expect(settled).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(1);
+
+        expect(await result).toEqual({ status: "failed", reason: "timeout" });
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("passes the caller's cancellation through to the client", async () => {

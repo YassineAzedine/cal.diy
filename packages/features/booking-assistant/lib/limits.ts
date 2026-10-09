@@ -5,9 +5,11 @@ export const BOOKING_ASSISTANT_LIMITS = {
   maxDaysAhead: 90,
   // Bounds slot-engine work per request to about one month, however broad the booker's request is.
   maxRangeDays: 31,
-  requestTimeoutMs: 5000,
-  // The expected JSON answer is well under 100 tokens; the headroom covers verbose models.
-  maxOutputTokens: 300,
+  // Reasoning models took up to ~4.5 s in live tests, so 5 s cut off valid answers.
+  requestTimeoutMs: 8000,
+  // The JSON answer is under 100 tokens, but hidden reasoning counts against this limit too (up to ~500
+  // tokens in live tests). At 300, reasoning used the whole budget and the answer came back empty.
+  maxOutputTokens: 1500,
   // A normal provider response is about 1-2 KB, so anything far larger is not a usable answer.
   maxResponseBytes: 16_384,
 } as const;
