@@ -1,5 +1,6 @@
 import type { IGetAvailableSlots } from "@calcom/features/bookings/Booker/hooks/useAvailableTimeSlots";
 import { ErrorWithCode } from "@calcom/lib/errors";
+import { addDays, weekdayOf } from "./calendarDate";
 import { BOOKING_ASSISTANT_LIMITS } from "./limits";
 import type { UnderstoodSlotRequest } from "./slotRequestSchema";
 
@@ -22,16 +23,6 @@ type MatchedSlot = {
   // The booker's calendar day the slot counts towards, which differs from its own date after midnight.
   day: string;
 };
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-// Calendar-day arithmetic on YYYY-MM-DD strings; UTC keeps it free of DST shifts.
-const toUtcMs = (date: string) => {
-  const [year, month, day] = date.split("-").map(Number);
-  return Date.UTC(year, month - 1, day);
-};
-const weekdayOf = (date: string) => new Date(toUtcMs(date)).getUTCDay();
-const previousDate = (date: string) => new Date(toUtcMs(date) - MS_PER_DAY).toISOString().slice(0, 10);
 
 const toMinutes = (time: string) => {
   const [hours, minutes] = time.split(":").map(Number);
@@ -77,7 +68,7 @@ const getWindowDay = (localDate: string, minutes: number, window: TimeWindow) =>
   const to = toMinutes(window.to);
   if (from < to) return minutes >= from && minutes < to ? localDate : null;
   if (minutes >= from) return localDate;
-  if (minutes < to) return previousDate(localDate);
+  if (minutes < to) return addDays(localDate, -1);
   return null;
 };
 

@@ -1,20 +1,11 @@
 import { ErrorCode } from "@calcom/lib/errorCodes";
 import { ErrorWithCode } from "@calcom/lib/errors";
 import { z } from "zod";
+import { addDays, toUtcMs } from "./calendarDate";
 import { BOOKING_ASSISTANT_LIMITS } from "./limits";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-// Dates here are timezone-less calendar days, so UTC arithmetic is safe and avoids DST shifts.
-const toUtcMs = (date: string) => {
-  const [year, month, day] = date.split("-").map(Number);
-  return Date.UTC(year, month - 1, day);
-};
-
-const addDays = (date: string, days: number) =>
-  new Date(toUtcMs(date) + days * MS_PER_DAY).toISOString().slice(0, 10);
 
 export const isValidCalendarDate = (value: string) => {
   if (!DATE_PATTERN.test(value)) return false;
