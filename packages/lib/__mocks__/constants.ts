@@ -21,6 +21,7 @@ const initialConstants = {
   PUBLIC_QUICK_AVAILABILITY_ROLLOUT: 100,
   SINGLE_ORG_SLUG: "",
   DEFAULT_GROUP_ID: "default_group_id",
+  IS_BOOKING_ASSISTANT_UI_ENABLED: false,
 } as Partial<typeof constants>;
 
 export const mockedConstants = { ...initialConstants };

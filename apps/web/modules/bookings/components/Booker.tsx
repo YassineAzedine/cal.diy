@@ -22,6 +22,7 @@ import { scrollIntoViewSmooth } from "@calcom/lib/browser/browser.utils";
 import {
   CLOUDFLARE_SITE_ID,
   CLOUDFLARE_USE_TURNSTILE_IN_BOOKER,
+  IS_BOOKING_ASSISTANT_UI_ENABLED,
   PUBLIC_INVALIDATE_AVAILABLE_SLOTS_ON_BOOKING_FORM,
 } from "@calcom/lib/constants";
 import { useCompatSearchParams } from "@calcom/lib/hooks/useCompatSearchParams";
@@ -42,6 +43,7 @@ import type { WrappedBookerProps } from "../types";
 import { AvailableTimeSlots } from "./AvailableTimeSlots";
 import { BookEventForm } from "./BookEventForm";
 import { BookFormAsModal } from "./BookEventForm/BookFormAsModal";
+import { BookingAssistant } from "./BookingAssistant";
 import { DatePicker } from "./DatePicker";
 import { DryRunMessage } from "./DryRunMessage";
 import { EventMeta } from "./EventMeta";
@@ -87,6 +89,9 @@ const BookerComponent = ({
   roundRobinHideOrgAndTeam,
   hideOrgTeamAvatar,
   showNoAvailabilityDialog,
+  isTeamEvent,
+  useApiV2,
+  teamMemberEmail,
 }: BookerProps & WrappedBookerProps): JSX.Element | null => {
   const searchParams = useCompatSearchParams();
   const isPlatformBookerEmbed = useIsPlatformBookerEmbed();
@@ -215,6 +220,18 @@ const BookerComponent = ({
       setIsSlotSelectionModalVisible(false);
     }
   };
+
+  // MVP limits: suggestions are applied like a plain slot click, which doesn't cover seated events or the
+  // skip-confirm flow, and team events on the API v2 slots path show slots the assistant doesn't query.
+  const showBookingAssistant =
+    IS_BOOKING_ASSISTANT_UI_ENABLED &&
+    !isPlatform &&
+    !isEmbed &&
+    !isPlatformBookerEmbed &&
+    !event.data?.seatsPerTimeSlot &&
+    !skipConfirmStep &&
+    !(useApiV2 && (isTeamEvent ?? !!event.data?.team)) &&
+    (bookerState === "selecting_date" || bookerState === "selecting_time");
 
   updateEmbedBookerState({ bookerState, slotsQuery: schedule });
 
@@ -427,6 +444,12 @@ const BookerComponent = ({
                     hideEventTypeDetails={hideEventTypeDetails}>
                     {eventMetaChildren}
                   </EventMeta>
+                )}
+                {showBookingAssistant && (
+                  <BookingAssistant
+                    teamMemberEmail={teamMemberEmail}
+                    onSlotSelect={onAvailableTimeSlotSelect}
+                  />
                 )}
                 {layout !== BookerLayouts.MONTH_VIEW &&
                   !(layout === "mobile" && bookerState === "booking") && (

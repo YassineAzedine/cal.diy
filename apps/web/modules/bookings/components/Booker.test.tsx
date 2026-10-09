@@ -1,6 +1,7 @@
 import "@calcom/features/bookings/Booker/__mocks__/config";
 import "./__mocks__/OverlayCalendar";
 import "./__mocks__/AvailableTimeSlots";
+import "./__mocks__/BookingAssistant";
 import "./__mocks__/DatePicker";
 import "./__mocks__/DryRunMessage";
 import "./__mocks__/EventMeta";
@@ -97,6 +98,12 @@ const mockSchedule = {
   isPending: false,
   invalidate: vi.fn(),
 };
+
+const { skipConfirmStep } = vi.hoisted(() => ({ skipConfirmStep: { current: false } }));
+
+vi.mock("@calcom/web/modules/bookings/hooks/useSkipConfirmStep", () => ({
+  useSkipConfirmStep: () => skipConfirmStep.current,
+}));
 
 vi.mock("@calcom/atoms/hooks/useIsPlatformBookerEmbed", () => ({
   useIsPlatformBookerEmbed: () => false,
@@ -244,6 +251,74 @@ describe("Booker", () => {
 
     expect(mockInvalidate).toHaveBeenCalled();
     expect(defaultProps.slots.setSelectedTimeslot).toHaveBeenCalledWith(null);
+  });
+
+  describe("Booking assistant", () => {
+    const eventWithoutSeats = { ...mockEvent, data: { ...mockEvent.data, seatsPerTimeSlot: null } };
+    const assistantProps = { ...defaultProps, event: eventWithoutSeats };
+    const selectingTime = {
+      state: "selecting_time" as const,
+      selectedDate: "2024-01-01",
+      selectedTimeslot: null,
+    };
+
+    const renderBooker = (
+      props: Record<string, unknown> = {},
+      mockStore: Record<string, unknown> = selectingTime
+    ) =>
+      render(
+        <Booker {...({ ...assistantProps, ...props } as unknown as BookerProps & WrappedBookerProps)} />,
+        { mockStore }
+      );
+
+    beforeEach(() => {
+      skipConfirmStep.current = false;
+      constantsScenarios.set({ IS_BOOKING_ASSISTANT_UI_ENABLED: "true" });
+    });
+
+    it("shows the assistant on a public booking page", () => {
+      renderBooker();
+
+      expect(screen.getByTestId("booking-assistant")).toBeInTheDocument();
+    });
+
+    it("shows the assistant while the booker is still selecting a date", () => {
+      renderBooker({}, { ...selectingTime, state: "selecting_date", selectedDate: null });
+
+      expect(screen.getByTestId("booking-assistant")).toBeInTheDocument();
+    });
+
+    it.each<[string, () => ReturnType<typeof renderBooker>]>([
+      [
+        "the UI flag is off",
+        () => {
+          constantsScenarios.set({ IS_BOOKING_ASSISTANT_UI_ENABLED: "" });
+          return renderBooker();
+        },
+      ],
+      ["on a platform booker", () => renderBooker({ isPlatform: true })],
+      ["in an embed", () => renderBooker({ bookerLayout: { ...defaultProps.bookerLayout, isEmbed: true } })],
+      ["for a seated event", () => renderBooker({ event: mockEvent })],
+      [
+        "when the confirm step is skipped",
+        () => {
+          skipConfirmStep.current = true;
+          return renderBooker();
+        },
+      ],
+      ["for a team event loaded through API v2", () => renderBooker({ useApiV2: true, isTeamEvent: true })],
+      ["while the booking form is open", () => renderBooker({}, { state: "booking" })],
+    ])("hides the assistant %s", (_, renderCase) => {
+      renderCase();
+
+      expect(screen.queryByTestId("booking-assistant")).not.toBeInTheDocument();
+    });
+
+    it("still shows the assistant for a team event that uses tRPC slots", () => {
+      renderBooker({ useApiV2: false, isTeamEvent: true });
+
+      expect(screen.getByTestId("booking-assistant")).toBeInTheDocument();
+    });
   });
 
   describe("Schedule and Availability Check", () => {

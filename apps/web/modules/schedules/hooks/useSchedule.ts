@@ -7,6 +7,7 @@ import { useTimesForSchedule } from "@calcom/features/schedules/hooks/useTimesFo
 import { getRoutedTeamMemberIdsFromSearchParams } from "@calcom/lib/bookings/getRoutedTeamMemberIdsFromSearchParams";
 import { PUBLIC_QUERY_AVAILABLE_SLOTS_INTERVAL_SECONDS } from "@calcom/lib/constants";
 import { trpc } from "@calcom/trpc/react";
+import type { ReadonlyURLSearchParams } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { useApiV2AvailableSlots } from "./useApiV2AvailableSlots";
 
@@ -32,6 +33,68 @@ export type UseScheduleWithCacheArgs = {
     layout: string;
     extraDays: number;
     columnViewExtraDays: { current: number };
+  };
+};
+
+export type ScheduleInputArgs = Pick<
+  UseScheduleWithCacheArgs,
+  | "username"
+  | "eventSlug"
+  | "eventId"
+  | "timezone"
+  | "duration"
+  | "rescheduleUid"
+  | "isTeamEvent"
+  | "orgSlug"
+  | "teamMemberEmail"
+>;
+
+/**
+ * Everything getSchedule needs except the date range. Shared so other callers, like the booking
+ * assistant, query exactly the slots the Booker shows.
+ */
+export const buildScheduleInput = (
+  {
+    username,
+    eventSlug,
+    eventId,
+    timezone,
+    duration,
+    rescheduleUid,
+    isTeamEvent,
+    orgSlug,
+    teamMemberEmail,
+  }: ScheduleInputArgs,
+  searchParams: ReadonlyURLSearchParams | URLSearchParams | null
+) => {
+  const routedTeamMemberIds = searchParams
+    ? getRoutedTeamMemberIdsFromSearchParams(new URLSearchParams(searchParams.toString()))
+    : null;
+  const skipContactOwner = searchParams ? searchParams.get("cal.skipContactOwner") === "true" : false;
+  const queuedFormResponseId = searchParams?.get("cal.queuedFormResponseId");
+  const email = searchParams?.get("email");
+  const embedConnectVersion = searchParams?.get("cal.embed.connectVersion") || "0";
+  return {
+    isTeamEvent,
+    usernameList: getUsernameList(username ?? ""),
+    // Prioritize slug over id, since slug is the first value we get available.
+    // If we have a slug, we don't need to fetch the id.
+    // TODO: are queries using eventTypeId faster? Even tho we lost time fetching the id with the slug.
+    ...(eventSlug ? { eventTypeSlug: eventSlug } : { eventTypeId: eventId ?? 0 }),
+    // We use a placeholder value that is there to keep TS happy, but still invalid to tell us that it shouldn't actually be passed in request(and wouldn't because enabled is false if timezone is nullish)
+    // TODO: Better approach here is to use `skipToken` from react-query which requires an upgrade of react-query
+    timeZone: timezone ?? "PLACEHOLDER_TIMEZONE",
+    duration: duration ? `${duration}` : undefined,
+    rescheduleUid,
+    orgSlug,
+    teamMemberEmail,
+    routedTeamMemberIds,
+    skipContactOwner,
+    ...(queuedFormResponseId ? { queuedFormResponseId } : {}),
+    email,
+    // Ensures that connectVersion causes a refresh of the data
+    ...(embedConnectVersion ? { embedConnectVersion } : {}),
+    _isDryRun: searchParams ? isBookingDryRun(searchParams) : false,
   };
 };
 
@@ -74,43 +137,30 @@ export const useSchedule = ({
     bookerLayout,
   });
   const searchParams = useSearchParams();
-  const routedTeamMemberIds = searchParams
-    ? getRoutedTeamMemberIdsFromSearchParams(new URLSearchParams(searchParams.toString()))
-    : null;
-  const skipContactOwner = searchParams ? searchParams.get("cal.skipContactOwner") === "true" : false;
   const utils = trpc.useUtils();
-  const queuedFormResponseId = searchParams?.get("cal.queuedFormResponseId");
-  const email = searchParams?.get("email");
   // We allow skipping the schedule fetch as a requirement for prerendering in iframe through embed as when the pre-rendered iframe is connected, then we would fetch the availability, which would be upto-date
   // Also, a reuse through Headless Router could completely change the availability as different team members are selected and thus it is unnecessary to fetch the schedule
   const skipGetSchedule = searchParams?.get("cal.skipSlotsFetch") === "true";
-  const embedConnectVersion = searchParams?.get("cal.embed.connectVersion") || "0";
   const input = {
-    isTeamEvent,
-    usernameList: getUsernameList(username ?? ""),
-    // Prioritize slug over id, since slug is the first value we get available.
-    // If we have a slug, we don't need to fetch the id.
-    // TODO: are queries using eventTypeId faster? Even tho we lost time fetching the id with the slug.
-    ...(eventSlug ? { eventTypeSlug: eventSlug } : { eventTypeId: eventId ?? 0 }),
+    ...buildScheduleInput(
+      {
+        username,
+        eventSlug,
+        eventId,
+        timezone,
+        duration,
+        rescheduleUid,
+        isTeamEvent,
+        orgSlug,
+        teamMemberEmail,
+      },
+      searchParams
+    ),
     // @TODO: Old code fetched 2 days ago if we were fetching the current month.
     // Do we want / need to keep that behavior?
     startTime,
     // if `prefetchNextMonth` is true, two months are fetched at once.
     endTime,
-    // We use a placeholder value that is there to keep TS happy, but still invalid to tell us that it shouldn't actually be passed in request(and wouldn't because enabled is false if timezone is nullish)
-    // TODO: Better approach here is to use `skipToken` from react-query which requires an upgrade of react-query
-    timeZone: timezone ?? "PLACEHOLDER_TIMEZONE",
-    duration: duration ? `${duration}` : undefined,
-    rescheduleUid,
-    orgSlug,
-    teamMemberEmail,
-    routedTeamMemberIds,
-    skipContactOwner,
-    ...(queuedFormResponseId ? { queuedFormResponseId } : {}),
-    email,
-    // Ensures that connectVersion causes a refresh of the data
-    ...(embedConnectVersion ? { embedConnectVersion } : {}),
-    _isDryRun: searchParams ? isBookingDryRun(searchParams) : false,
   };
 
   const options = {
