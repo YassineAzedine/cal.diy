@@ -1,10 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-
 import publicProcedure from "../../../procedures/publicProcedure";
 import { router } from "../../../trpc";
 import { ZIsAvailableInputSchema, ZIsAvailableOutputSchema } from "./isAvailable.schema";
 import { ZRemoveSelectedSlotInputSchema } from "./removeSelectedSlot.schema";
 import { ZReserveSlotInputSchema } from "./reserveSlot.schema";
+import { ZSuggestSlotsInputSchema, ZSuggestSlotsOutputSchema } from "./suggestSlots.schema";
 import { ZGetScheduleInputSchema } from "./types";
 
 type SlotsRouterHandlerCache = {
@@ -41,6 +41,15 @@ export const slotsRouter = router({
         ctx: { ...ctx, req: ctx.req as NextApiRequest },
         input,
       });
+    }),
+  // A mutation so the booker's free text travels in the body, never in URLs, logs or caches.
+  suggestSlots: publicProcedure
+    .input(ZSuggestSlotsInputSchema)
+    .output(ZSuggestSlotsOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { suggestSlotsHandler } = await import("./suggestSlots.handler");
+
+      return suggestSlotsHandler({ ctx, input });
     }),
   // This endpoint has no dependencies, it doesn't need its own file
   removeSelectedSlotMark: publicProcedure
